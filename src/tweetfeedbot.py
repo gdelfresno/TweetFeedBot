@@ -8,10 +8,23 @@ import bitly
 import twitter
 from config import Config
 
-f = file('config.cfg')
-cfg = Config(f)
+import sys
 
-READER_FOLDER = cfg.bots[0].folder
+def getCategoryItems(categories,name):
+    for category in categories:
+        label = category.label
+        if (label == name):
+            category.loadItems(True)
+            return category.items
+    
+    return []
+
+argv = sys.argv
+if (len(argv)<2):
+    exit()
+
+f = file(argv[1])
+cfg = Config(f)
 
 readerUser = cfg.readerUser
 readerPassword = cfg.readerPassword
@@ -21,10 +34,7 @@ bitlyuser = cfg.bitlyuser
 
 twitterConsumerKey = cfg.twitterConsumerKey
 twitterConsumerSecret = cfg.twitterConsumerSecret
-accessTokenKey = cfg.bots[0].accessTokenKey
-accessTokenSecret = cfg.bots[0].accessTokenSecret
 
-apiTwitter = twitter.Api(consumer_key=twitterConsumerKey,consumer_secret=twitterConsumerSecret,access_token_key=accessTokenKey, access_token_secret=accessTokenSecret)
 apiBitly = bitly.Api(login=bitlyuser, apikey=bitlyapikey)
 
 #Iniciamos la conexion a Google Reader
@@ -36,38 +46,41 @@ reader.buildSubscriptionList()
 feeds = reader.getSubscriptionList()
 categories = reader.getCategories()
 
-
-#Recorremos cada uno de los elementos
-for category in categories:
-    label = category.label
-    if (label == READER_FOLDER):
-        category.loadItems(True)
-        news = category.items
+for bot in cfg.bots:
+    
+    if (bot.active):
+        botfolder = bot.folder
+        botTK = bot.accessTokenKey
+        botTS = bot.accessTokenSecret
+        print "Bot %s info -> Access Token:%s Access Token Secret:%s" % (botfolder,botTK,botTS)
         
-        #Recorremos cada uno de los elementos
-        for item in news:
-            #Titulo
-            title = item.title
-            
-            #Parseamos el original id que lleva el link original
-            gnlink = item.url
-            posURL = gnlink.find("url=")
-            link = gnlink[posURL+len("url="):len(gnlink)] 
+        news = getCategoryItems(categories,botfolder)
         
-            #Ahora obtenemos el link acortado.
-            shortLink = apiBitly.shorten(link)
-            
-            #Creamos el tweet
-            tweet = "%s %s" % (title,shortLink)
-            tweetLen = len(tweet)
-            print "    Tweet: %s (%i)" % (tweet, tweetLen)
-        
-            #Si el tweet es de menos de 140 caracteres publicamos
-            if (tweetLen <= 140):
-                apiTwitter.PostUpdate(tweet)
+        if (len(news)>0):
+            twitterClient = twitter.Api(consumer_key=twitterConsumerKey,consumer_secret=twitterConsumerSecret,access_token_key=botTK, access_token_secret=botTS)
+    
+            for item in news:
+                #Titulo
+                title = item.title
                 
-            #Marcamos el item de Google Reaer como leido    
-            item.markRead()
+                #Parseamos el original id que lleva el link original
+                gnlink = item.url
+                posURL = gnlink.find("url=")
+                link = gnlink[posURL+len("url="):len(gnlink)] 
+            
+                #Ahora obtenemos el link acortado.
+                shortLink = apiBitly.shorten(link)
+                
+                #Creamos el tweet
+                tweet = "%s %s" % (title,shortLink)
+                tweetLen = len(tweet)
+                print "    Tweet: %s (%i)" % (tweet, tweetLen)
     
-    
+                #Si el tweet es de menos de 140 caracteres publicamos
+                if (tweetLen <= 140):
+                    twitterClient.PostUpdate(tweet)
+                    
+                #Marcamos el item de Google Reaer como leido    
+                item.markRead()
+        
     
