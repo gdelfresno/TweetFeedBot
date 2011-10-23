@@ -6,19 +6,23 @@ Created on 21/10/2011
 from libgreader import GoogleReader, OAuthMethod, ClientAuthMethod, Feed, ItemsContainer, Item, BaseFeed, SpecialFeed, ReaderUrl
 import bitly
 import twitter
+from config import Config
 
-READER_FOLDER = "Demonstration"
+f = file('config.cfg')
+cfg = Config(f)
 
-readerUser = 'user@gmail.com'
-readerPassword = 'password'
+READER_FOLDER = cfg.bots[0].folder
 
-bitlyapikey ="YOUR_API_KEY"
-bitlyuser = "YOUR_BITLY_USER"
+readerUser = cfg.readerUser
+readerPassword = cfg.readerPassword
 
-twitterConsumerKey = ''
-twitterConsumerSecret = ''
-accessTokenKey = ''
-accessTokenSecret = ''
+bitlyapikey = cfg.bitlyapikey
+bitlyuser = cfg.bitlyuser
+
+twitterConsumerKey = cfg.twitterConsumerKey
+twitterConsumerSecret = cfg.twitterConsumerSecret
+accessTokenKey = cfg.bots[0].accessTokenKey
+accessTokenSecret = cfg.bots[0].accessTokenSecret
 
 apiTwitter = twitter.Api(consumer_key=twitterConsumerKey,consumer_secret=twitterConsumerSecret,access_token_key=accessTokenKey, access_token_secret=accessTokenSecret)
 apiBitly = bitly.Api(login=bitlyuser, apikey=bitlyapikey)
