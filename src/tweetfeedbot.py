@@ -19,6 +19,24 @@ def getCategoryItems(categories,name):
     
     return []
 
+def postNewsWithUrl(title,url):
+    
+    #Ahora obtenemos el link acortado.
+    shortLink = apiBitly.shorten(url)
+    
+    #Creamos el tweet
+    tweet = "%s %s" % (title,link)
+    tweetLen = len(tweet)
+                
+                
+    #Si el tweet es de menos de 140 caracteres publicamos
+    if (tweetLen <= 140):
+        twitterClient.PostUpdate(tweet)
+        
+    #Marcamos el item de Google Reaer como leido    
+    item.markRead()
+    
+    
 argv = sys.argv
 if (len(argv)<2):
     exit()
@@ -52,14 +70,14 @@ for bot in cfg.bots:
         botfolder = bot.folder
         botTK = bot.accessTokenKey
         botTS = bot.accessTokenSecret
-        print "Bot %s info -> Access Token:%s Access Token Secret:%s" % (botfolder,botTK,botTS)
+        print "Bot %s info -> Access Token:%s Access Token Secret:%s" % (botfolder,'botTK','botTS')
         
         news = getCategoryItems(categories,botfolder)
         
         if (len(news)>0):
             twitterClient = twitter.Api(consumer_key=twitterConsumerKey,consumer_secret=twitterConsumerSecret,access_token_key=botTK, access_token_secret=botTS)
     
-            for item in news:
+            for item in news[0:2]:
                 #Titulo
                 title = item.title
                 
@@ -67,20 +85,16 @@ for bot in cfg.bots:
                 gnlink = item.url
                 posURL = gnlink.find("url=")
                 link = gnlink[posURL+len("url="):len(gnlink)] 
-            
-                #Ahora obtenemos el link acortado.
-                shortLink = apiBitly.shorten(link)
+
+                shortlink = link
+                
+                shortlink = postNewsWithUrl(title,link)
                 
                 #Creamos el tweet
-                tweet = "%s %s" % (title,shortLink)
+                tweet = "%s %s" % (title,shortlink)
                 tweetLen = len(tweet)
                 print "    Tweet: %s (%i)" % (tweet, tweetLen)
     
-                #Si el tweet es de menos de 140 caracteres publicamos
-                if (tweetLen <= 140):
-                    twitterClient.PostUpdate(tweet)
-                    
-                #Marcamos el item de Google Reaer como leido    
-                item.markRead()
+
         
     
