@@ -9,7 +9,15 @@ import twitter
 from config import Config
 
 import sys
-
+def textPassFilters(text,filters):
+    passFilter = True
+    if (len(filters)>0):
+        for filterword in filters:
+            if (title.find(filterword)>-1):
+                passFilter = False
+    
+    return passFilter
+    
 def getCategoryItems(categories,name):
     for category in categories:
         label = category.label
@@ -19,22 +27,24 @@ def getCategoryItems(categories,name):
     
     return []
 
-def postNewsWithUrl(title,url):
+def postNewsWithUrl(title,url,item):
     
     #Ahora obtenemos el link acortado.
-    shortLink = apiBitly.shorten(url)
+    shortlink = apiBitly.shorten(url)
     
     #Creamos el tweet
-    tweet = "%s %s" % (title,link)
+    tweet = "%s %s" % (title,shortlink)
     tweetLen = len(tweet)
                 
                 
     #Si el tweet es de menos de 140 caracteres publicamos
     if (tweetLen <= 140):
         twitterClient.PostUpdate(tweet)
-        
+    
     #Marcamos el item de Google Reaer como leido    
     item.markRead()
+        
+    return shortlink
     
     
 argv = sys.argv
@@ -64,37 +74,55 @@ reader.buildSubscriptionList()
 feeds = reader.getSubscriptionList()
 categories = reader.getCategories()
 
+MAX_TWEETS = 2
+
 for bot in cfg.bots:
     
     if (bot.active):
         botfolder = bot.folder
         botTK = bot.accessTokenKey
         botTS = bot.accessTokenSecret
-        print "Bot %s info -> Access Token:%s Access Token Secret:%s" % (botfolder,'botTK','botTS')
         
         news = getCategoryItems(categories,botfolder)
+        print "Bot %s info -> Total News: %i  Access Token:%s Access Token Secret:%s" % (botfolder,len(news),'botTK','botTS')
         
+         
         if (len(news)>0):
             twitterClient = twitter.Api(consumer_key=twitterConsumerKey,consumer_secret=twitterConsumerSecret,access_token_key=botTK, access_token_secret=botTS)
-    
-            for item in news[0:2]:
+            
+            count = 0
+            for item in news:
                 #Titulo
                 title = item.title
                 
-                #Parseamos el original id que lleva el link original
-                gnlink = item.url
-                posURL = gnlink.find("url=")
-                link = gnlink[posURL+len("url="):len(gnlink)] 
-
-                shortlink = link
+                passFilter = textPassFilters(title,bot.filters)
                 
-                shortlink = postNewsWithUrl(title,link)
-                
-                #Creamos el tweet
-                tweet = "%s %s" % (title,shortlink)
-                tweetLen = len(tweet)
-                print "    Tweet: %s (%i)" % (tweet, tweetLen)
+                if passFilter:
+                            
+                    #Parseamos el original id que lleva el link original
+                    gnlink = item.url
+                    posURL = gnlink.find("url=")
+                    link = gnlink[posURL+len("url="):len(gnlink)] 
     
-
-        
+                    shortlink = link
+                    
+                    try:
+                        print '    Tweeting....'
+                        shortlink = postNewsWithUrl(title,link,item)
+                        
+                        #Creamos el tweet
+                        tweet = "%s %s" % (title,shortlink)
+                        tweetlen = len(tweet)
+                        print "    Tweet: %s (%i)" % (tweet, tweetlen)
+                        count=count+1 
+                    except:
+                        print '    ### Error while tweeting ###'
+                       
+                    
+                else:
+                    print '    !!! Tweet Rejected: %s' % title
+                    item.markRead()
+                
+                if (count == MAX_TWEETS):
+                    break
     
