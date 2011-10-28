@@ -8,7 +8,11 @@ import bitly
 import twitter
 from config import Config
 
+
 import sys
+reload(sys)
+sys.setdefaultencoding( "latin-1" )
+
 def textPassFilters(text,filters):
     passFilter = True
     if (len(filters)>0):
@@ -46,9 +50,15 @@ def postNewsWithUrl(title,url,item):
         
     return shortlink
     
-    
+#def getLongTitle(link):
+#    br = Browser()
+#    br.open(link)
+#    return br.title()
+
+
 argv = sys.argv
 if (len(argv)<2):
+    print "Usage: %s %s" % (argv[0], "configFile.cfg")
     exit()
 
 f = file(argv[1])
@@ -84,7 +94,7 @@ for bot in cfg.bots:
         botTS = bot.accessTokenSecret
         
         news = getCategoryItems(categories,botfolder)
-        print "Bot %s info -> Total News: %i  Access Token:%s Access Token Secret:%s" % (botfolder,len(news),'botTK','botTS')
+        print 'Bot %s info -> Total News: %i  Access Token:%s Access Token Secret: %s' % (botfolder,len(news),'botTK','botTS')
         
          
         if (len(news)>0):
@@ -106,8 +116,11 @@ for bot in cfg.bots:
     
                     shortlink = link
                     
+#                    longTitle = getLongTitle(link)
+#                    print "Long Title %s" % longTitle
+                    
                     try:
-                        print '    Tweeting....'
+                        print "    Tweeting...."
                         shortlink = postNewsWithUrl(title,link,item)
                         
                         #Creamos el tweet
@@ -116,11 +129,11 @@ for bot in cfg.bots:
                         print "    Tweet: %s (%i)" % (tweet, tweetlen)
                         count=count+1 
                     except:
-                        print '    ### Error while tweeting ###'
+                        print "    ### Error while tweeting ###"
                        
                     
                 else:
-                    print '    !!! Tweet Rejected: %s' % title
+                    print "    !!! Tweet Rejected: %s" % (title)
                     item.markRead()
                 
                 if (count == MAX_TWEETS):
