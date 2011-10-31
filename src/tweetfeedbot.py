@@ -84,7 +84,7 @@ reader.buildSubscriptionList()
 feeds = reader.getSubscriptionList()
 categories = reader.getCategories()
 
-MAX_TWEETS = 2
+DEFAULT_MAX_TWEETS = 2
 
 for bot in cfg.bots:
     
@@ -100,6 +100,7 @@ for bot in cfg.bots:
         if (len(news)>0):
             twitterClient = twitter.Api(consumer_key=twitterConsumerKey,consumer_secret=twitterConsumerSecret,access_token_key=botTK, access_token_secret=botTS)
             
+            tweetlimit = bot.maxtweets if bot.maxtweets > -1 else DEFAULT_MAX_TWEETS 
             count = 0
             for item in news:
                 #Titulo
@@ -136,6 +137,6 @@ for bot in cfg.bots:
                     print "    !!! Tweet Rejected: %s" % (title)
                     item.markRead()
                 
-                if (count == MAX_TWEETS):
+                if (count == tweetlimit):
                     break
     
