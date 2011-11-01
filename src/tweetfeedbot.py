@@ -7,6 +7,7 @@ from libgreader import GoogleReader, OAuthMethod, ClientAuthMethod, Feed, ItemsC
 import bitly
 import twitter
 from config import Config
+import random
 
 
 import sys
@@ -102,6 +103,7 @@ for bot in cfg.bots:
             
             tweetlimit = bot.maxtweets if bot.maxtweets > -1 else DEFAULT_MAX_TWEETS 
             count = 0
+            random.shuffle(news)
             for item in news:
                 #Titulo
                 title = item.title
