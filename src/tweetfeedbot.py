@@ -35,7 +35,11 @@ def getCategoryItems(categories,name):
 def postNewsWithUrl(title,url,item):
     
     #Ahora obtenemos el link acortado.
-    shortlink = apiBitly.shorten(url)
+    try:
+        shortlink = apiBitly.shorten(url)
+    except BitlyError as e:
+        print 'Error shortening link (%s): %s' % (url, e.message)
+        raise e
     
     #Creamos el tweet
     tweet = "%s %s" % (title,shortlink)
@@ -44,7 +48,13 @@ def postNewsWithUrl(title,url,item):
                 
     #Si el tweet es de menos de 140 caracteres publicamos
     if (tweetLen <= 140):
-        twitterClient.PostUpdate(tweet)
+        try:
+            twitterClient.PostUpdate(tweet)
+        except TwitterError as e:
+            print 'Error Posting update (%s): %s' % (tweet,e.message)
+            raise e
+            
+            
     
     #Marcamos el item de Google Reaer como leido    
     item.markRead()
