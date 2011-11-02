@@ -3,16 +3,46 @@ Created on 21/10/2011
 
 @author: gdelfresno
 '''
-from libgreader import GoogleReader, OAuthMethod, ClientAuthMethod, Feed, ItemsContainer, Item, BaseFeed, SpecialFeed, ReaderUrl
+from libgreader import GoogleReader, ClientAuthMethod
 import bitly
 import twitter
 from config import Config
+from mechanize import Browser
 import random
 
-
+import os.path
 import sys
 reload(sys)
 sys.setdefaultencoding( "latin-1" )
+
+def generateTweet(title,url,hashtags=[]):
+    
+       
+    shortlink = url
+    try:
+        shortlink = apiBitly.shorten(url)
+    except BitlyError as e:
+        print 'Error shortening link (%s): %s' % (url, e.message)
+        
+
+    tweet = "%s %s" % (title,shortlink)
+    
+    if len(tweet) < 140:
+        if title.find('...') > -1:
+            longTitle = getURLTitle(url)
+            if longTitle != '':
+                longTweet = "%s %s" % (longTitle,shortlink)
+                if len(longTweet) < 140:
+                    tweet = longTweet
+    
+    return tweet
+
+def getURLTitle(url):
+    br = Browser()
+    br.open(url,timeout=10)
+    title = br.title()
+    print '    %s title -> %s ' % (url,title)
+    return title
 
 def textPassFilters(text,filters):
     passFilter = True
@@ -32,40 +62,17 @@ def getCategoryItems(categories,name):
     
     return []
 
-def postNewsWithUrl(title,url,item):
-    
-    #Ahora obtenemos el link acortado.
-    try:
-        shortlink = apiBitly.shorten(url)
-    except BitlyError as e:
-        print 'Error shortening link (%s): %s' % (url, e.message)
-        raise e
-    
-    #Creamos el tweet
-    tweet = "%s %s" % (title,shortlink)
-    tweetLen = len(tweet)
-                
-                
+def tuitAndMark(tweet,item):
     #Si el tweet es de menos de 140 caracteres publicamos
-    if (tweetLen <= 140):
+    if len(tweet) <= 140:
         try:
             twitterClient.PostUpdate(tweet)
         except TwitterError as e:
             print 'Error Posting update (%s): %s' % (tweet,e.message)
             raise e
-            
-            
     
     #Marcamos el item de Google Reaer como leido    
     item.markRead()
-        
-    return shortlink
-    
-#def getLongTitle(link):
-#    br = Browser()
-#    br.open(link)
-#    return br.title()
-
 
 argv = sys.argv
 if (len(argv)<2):
@@ -75,6 +82,9 @@ if (len(argv)<2):
 f = file(argv[1])
 cfg = Config(f)
 
+DEBUG_MODE = os.path.isfile('debug')
+if DEBUG_MODE:
+    print "################    DEBUG MODE    ##############"
 readerUser = cfg.readerUser
 readerPassword = cfg.readerPassword
 
@@ -126,28 +136,28 @@ for bot in cfg.bots:
                     gnlink = item.url
                     posURL = gnlink.find("url=")
                     link = gnlink[posURL+len("url="):len(gnlink)] 
-    
-                    shortlink = link
                     
-#                    longTitle = getLongTitle(link)
-#                    print "Long Title %s" % longTitle
                     
                     try:
                         print "    Tweeting...."
-                        shortlink = postNewsWithUrl(title,link,item)
                         
                         #Creamos el tweet
-                        tweet = "%s %s" % (title,shortlink)
-                        tweetlen = len(tweet)
-                        print "    Tweet: %s (%i)" % (tweet, tweetlen)
+                        tweet = generateTweet(title, link)
+                        
+                        if not DEBUG_MODE:
+                            tuitAndMark(tweet, item)
+
+                        print "    Tweet: %s (%i)" % (tweet, len(tweet))
                         count=count+1 
-                    except:
+                    except Exception as e:
                         print "    ### Error while tweeting ###"
+                        print e.message
                        
                     
                 else:
                     print "    !!! Tweet Rejected: %s" % (title)
-                    item.markRead()
+                    if not DEBUG_MODE:
+                        item.markRead()
                 
                 if (count == tweetlimit):
                     break
