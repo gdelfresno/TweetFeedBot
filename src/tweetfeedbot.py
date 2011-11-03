@@ -9,6 +9,8 @@ import twitter
 from config import Config
 from mechanize import Browser
 import random
+from twitter import TwitterError
+from bitly import BitlyError
 
 import os.path
 import sys
@@ -21,27 +23,34 @@ def generateTweet(title,url,hashtags=[]):
     shortlink = url
     try:
         shortlink = apiBitly.shorten(url)
-    except BitlyError as e:
-        print 'Error shortening link (%s): %s' % (url, e.message)
+    except BitlyError as (e):
+        print '    Error shortening link (%s)' % (url)
         
 
     tweet = "%s %s" % (title,shortlink)
     
-    if len(tweet) < 140:
-        if title.find('...') > -1:
-            longTitle = getURLTitle(url)
-            if longTitle != '':
-                longTweet = "%s %s" % (longTitle,shortlink)
-                if len(longTweet) < 140:
-                    tweet = longTweet
+    try:
+        if len(tweet) < 140:
+            if title.find('...') > -1:
+                longTitle = '' #getURLTitle(url)
+                if longTitle != '':
+                    longTweet = "%s %s" % (longTitle,shortlink)
+                    if len(longTweet) < 140:
+                        tweet = longTweet
+    except Exception as (e):
+        print '        Error while getting title: %s' % e.message
+        raise
     
     return tweet
 
 def getURLTitle(url):
+    print '        searching title: %s' % url
     br = Browser()
     br.open(url,timeout=10)
     title = br.title()
-    print '    %s title -> %s ' % (url,title)
+    br.close()
+    print '        title -> %s ' % (title)
+     
     return title
 
 def textPassFilters(text,filters):
@@ -66,13 +75,18 @@ def tuitAndMark(tweet,item):
     #Si el tweet es de menos de 140 caracteres publicamos
     if len(tweet) <= 140:
         try:
+            print "    Tweeting...."
             twitterClient.PostUpdate(tweet)
-        except TwitterError as e:
-            print 'Error Posting update (%s): %s' % (tweet,e.message)
+        except TwitterError as (e):
+            print '    Error Posting update (%s): %s' % (tweet,e.message)
             raise e
     
     #Marcamos el item de Google Reaer como leido    
-    item.markRead()
+    try:
+        item.markRead()
+    except Exception as (e):
+        print '    Error marking as read'
+        raise e
 
 argv = sys.argv
 if (len(argv)<2):
@@ -115,13 +129,13 @@ for bot in cfg.bots:
         botTS = bot.accessTokenSecret
         
         news = getCategoryItems(categories,botfolder)
-        print 'Bot %s info -> Total News: %i  Access Token:%s Access Token Secret: %s' % (botfolder,len(news),'botTK','botTS')
+        tweetlimit = bot.maxtweets if bot.maxtweets > -1 else DEFAULT_MAX_TWEETS 
+        print 'Bot %s info -> Total News: %i Limit:%i Access Token:%s Access Token Secret: %s' % (botfolder,len(news),tweetlimit,'botTK','botTS')
         
-         
-        if (len(news)>0):
+             
+        if (len(news)>0 and tweetlimit > 0):
             twitterClient = twitter.Api(consumer_key=twitterConsumerKey,consumer_secret=twitterConsumerSecret,access_token_key=botTK, access_token_secret=botTS)
             
-            tweetlimit = bot.maxtweets if bot.maxtweets > -1 else DEFAULT_MAX_TWEETS 
             count = 0
             random.shuffle(news)
             for item in news:
@@ -139,7 +153,7 @@ for bot in cfg.bots:
                     
                     
                     try:
-                        print "    Tweeting...."
+                        print "    Generating Tweet...."
                         
                         #Creamos el tweet
                         tweet = generateTweet(title, link)
@@ -147,11 +161,13 @@ for bot in cfg.bots:
                         if not DEBUG_MODE:
                             tuitAndMark(tweet, item)
 
-                        print "    Tweet: %s (%i)" % (tweet, len(tweet))
+                        print "    Tweeted!!!: %s (%i)" % (tweet, len(tweet))
                         count=count+1 
-                    except Exception as e:
+                    except Exception as (e):
                         print "    ### Error while tweeting ###"
-                        print e.message
+                        print "    ### Tweet: %s" % tweet
+                        print "    ### URL: %s ###" % link
+                        print "    ### %s ###" % e.message
                        
                     
                 else:
