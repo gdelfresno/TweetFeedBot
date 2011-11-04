@@ -17,7 +17,7 @@ import sys
 reload(sys)
 sys.setdefaultencoding( "latin-1" )
 
-def generateTweet(title,url,hashtags=[]):
+def generateTweet(title,url,hashtags={}):
     
        
     shortlink = url
@@ -41,7 +41,15 @@ def generateTweet(title,url,hashtags=[]):
         print '        Error while getting title: %s' % e.message
         raise
     
-    return tweet
+    hashtagedtweet = tweet
+    for key, value in hashtags.iteritems():
+        hashtagedtweet = hashtagedtweet.replace(key,value)
+       
+        
+    if len(hashtagedtweet) > 140:
+        hashtagedtweet = tweet
+        
+    return hashtagedtweet
 
 def getURLTitle(url):
     print '        searching title: %s' % url
@@ -67,6 +75,7 @@ def getCategoryItems(categories,name):
         label = category.label
         if (label == name):
             category.loadItems(True)
+            category.loadMoreItems(True) 
             return category.items
     
     return []
@@ -135,9 +144,13 @@ for bot in cfg.bots:
              
         if (len(news)>0 and tweetlimit > 0):
             twitterClient = twitter.Api(consumer_key=twitterConsumerKey,consumer_secret=twitterConsumerSecret,access_token_key=botTK, access_token_secret=botTS)
+            hashtags = {}
+            if 'hashtags' in bot.keys():
+                hashtags = bot.hashtags
             
             count = 0
             random.shuffle(news)
+            
             for item in news:
                 #Titulo
                 title = item.title
@@ -151,12 +164,12 @@ for bot in cfg.bots:
                     posURL = gnlink.find("url=")
                     link = gnlink[posURL+len("url="):len(gnlink)] 
                     
-                    
+                    tweet = ''
                     try:
                         print "    Generating Tweet...."
                         
                         #Creamos el tweet
-                        tweet = generateTweet(title, link)
+                        tweet = generateTweet(title, link,hashtags)
                         
                         if not DEBUG_MODE:
                             tuitAndMark(tweet, item)
