@@ -183,6 +183,10 @@ for bot in cfg.bots:
                         print "    ### Tweet: %s" % tweet
                         print "    ### URL: %s ###" % link
                         print "    ### %s ###" % e.message
+                        try:
+                            item.markRead()
+                        except Exception as (e):
+                            print '    Error marking as read'
                        
                     
                 else:
