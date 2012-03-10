@@ -12,11 +12,14 @@ import random
 from twitter import TwitterError
 from bitly import BitlyError
 
+import threading
 import urllib2
 import os.path
 import sys
 reload(sys)
 sys.setdefaultencoding( "latin-1" )
+
+
 
 def generateTweet(title,url,hashtags={}):
     
@@ -91,6 +94,13 @@ def internet_on():
     except urllib2.URLError as err: 
         pass
     return False
+
+class BotThread(threading.Thread):
+    def __init__(self,bot):
+        threading.Thread.__init__(self)
+        self.bot = bot
+    def run(self):
+        self.bot.update()
 
 class Bot(object):
     def __init__(self,config):
@@ -226,4 +236,5 @@ for bot in cfg.bots:
     
     if (bot.active):
         bot = Bot(bot)
-        bot.update()
+        botThread = BotThread(bot)
+        botThread.start()
