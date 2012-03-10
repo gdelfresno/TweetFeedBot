@@ -12,6 +12,7 @@ import random
 from twitter import TwitterError
 from bitly import BitlyError
 
+import urllib2
 import os.path
 import sys
 reload(sys)
@@ -82,6 +83,14 @@ def getCategoryItems(categories,name):
     return []
 
 
+
+def internet_on():
+    try:
+        response=urllib2.urlopen('http://twitter.com',timeout=2)
+        return True
+    except urllib2.URLError as err: 
+        pass
+    return False
 
 class Bot(object):
     def __init__(self,config):
@@ -184,6 +193,13 @@ cfg = Config(f)
 DEBUG_MODE = os.path.isfile('debug')
 if DEBUG_MODE:
     print "################    DEBUG MODE    ##############"
+
+if (not internet_on()):
+    print "Couldn't connect to internet" 
+    exit()
+else:
+    print "Connected to Internet"
+
 readerUser = cfg.readerUser
 readerPassword = cfg.readerPassword
 
@@ -198,8 +214,11 @@ apiBitly = bitly.Api(login=bitlyuser, apikey=bitlyapikey)
 #Iniciamos la conexion a Google Reader
 ca = ClientAuthMethod(readerUser,readerPassword)
 reader = GoogleReader(ca)
-reader.buildSubscriptionList()
-
+if reader.buildSubscriptionList():
+    print "Google Reader request ok"
+else:
+    print "Error retrieving subscriptions from Google Reader"
+    exit()
 
 DEFAULT_MAX_TWEETS = 2
 
