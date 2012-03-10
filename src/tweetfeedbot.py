@@ -66,7 +66,7 @@ def textPassFilters(text,filters):
     passFilter = True
     if (len(filters)>0):
         for filterword in filters:
-            if (title.find(filterword)>-1):
+            if (text.find(filterword)>-1):
                 passFilter = False
     
     return passFilter
@@ -81,23 +81,98 @@ def getCategoryItems(categories,name):
     
     return []
 
-def tuitAndMark(tweet,item):
-    #Si el tweet es de menos de 140 caracteres publicamos
-    if len(tweet) <= 140:
+
+
+class Bot(object):
+    def __init__(self,config):
+        self.config = config
+        
+    def tuitAndMark(self,tweet,item):
+        #Si el tweet es de menos de 140 caracteres publicamos
+        if len(tweet) <= 140:
+            try:
+                print "    Tweeting...."
+                self.twitterClient.PostUpdate(tweet)
+            except TwitterError as (e):
+                print '    Error Posting update (%s): %s' % (tweet,e.message)
+                raise e
+        
+        #Marcamos el item de Google Reaer como leido    
         try:
-            print "    Tweeting...."
-            twitterClient.PostUpdate(tweet)
-        except TwitterError as (e):
-            print '    Error Posting update (%s): %s' % (tweet,e.message)
+            item.markRead()
+        except Exception as (e):
+            print '    Error marking as read'
             raise e
     
-    #Marcamos el item de Google Reaer como leido    
-    try:
-        item.markRead()
-    except Exception as (e):
-        print '    Error marking as read'
-        raise e
+    def update(self):
+        botfolder = self.config.folder
+        botTK = self.config.accessTokenKey
+        botTS = self.config.accessTokenSecret
+        
+        categories = reader.getCategories()
+        news = getCategoryItems(categories,botfolder)
+        tweetlimit = self.config.maxtweets if self.config.maxtweets > -1 else DEFAULT_MAX_TWEETS 
+        print 'Bot %s info -> Total News: %i Limit:%i Access Token:%s Access Token Secret: %s' % (botfolder,len(news),tweetlimit,'botTK','botTS')
+        
+             
+        if (len(news)>0 and tweetlimit > 0):
+            self.twitterClient = twitter.Api(consumer_key=twitterConsumerKey,consumer_secret=twitterConsumerSecret,access_token_key=botTK, access_token_secret=botTS)
+            hashtags = {}
+            if 'hashtags' in self.config.keys():
+                hashtags = self.config.hashtags
+            
+            count = 0
+            if not DEBUG_MODE:
+                random.shuffle(news)
+            
+            for item in news:
+                #Titulo
+                title = item.title
+                
+                passFilter = textPassFilters(title,self.config.filters)
+                
+                if passFilter:
+                            
+                    #Parseamos el original id que lleva el link original
+                    gnlink = item.url
+                    posURL = gnlink.find("url=")
+                    link = gnlink[posURL+len("url="):len(gnlink)] 
+                    
+                    tweet = ''
+                    try:
+                        print "    Generating Tweet...."
+                        
+                        #Creamos el tweet
+                        tweet = generateTweet(title, link,hashtags)
+                        
+                        if not DEBUG_MODE:
+                            self.tuitAndMark(tweet, item)
 
+                        print "    Tweeted!!!: %s (%i)" % (tweet, len(tweet))
+                        count=count+1 
+                    except Exception as (e):
+                        print "    ### Error while tweeting ###"
+                        print "    ### Tweet: %s" % tweet
+                        print "    ### URL: %s ###" % link
+                        print "    ### %s ###" % e.message
+                        try:
+                            item.markRead()
+                        except Exception as (e):
+                            print '    Error marking as read'
+                       
+                    
+                else:
+                    print "    !!! Tweet Rejected: %s" % (title)
+                    if not DEBUG_MODE:
+                        item.markRead()
+                
+                if (count == tweetlimit):
+                    break
+    
+        
+
+
+###########################################################
 argv = sys.argv
 if (len(argv)<2):
     print "Usage: %s %s" % (argv[0], "configFile.cfg")
@@ -123,77 +198,13 @@ apiBitly = bitly.Api(login=bitlyuser, apikey=bitlyapikey)
 #Iniciamos la conexion a Google Reader
 ca = ClientAuthMethod(readerUser,readerPassword)
 reader = GoogleReader(ca)
-
-#Obtenemos los no leidos
 reader.buildSubscriptionList()
-feeds = reader.getSubscriptionList()
-categories = reader.getCategories()
+
 
 DEFAULT_MAX_TWEETS = 2
 
 for bot in cfg.bots:
     
     if (bot.active):
-        botfolder = bot.folder
-        botTK = bot.accessTokenKey
-        botTS = bot.accessTokenSecret
-        
-        news = getCategoryItems(categories,botfolder)
-        tweetlimit = bot.maxtweets if bot.maxtweets > -1 else DEFAULT_MAX_TWEETS 
-        print 'Bot %s info -> Total News: %i Limit:%i Access Token:%s Access Token Secret: %s' % (botfolder,len(news),tweetlimit,'botTK','botTS')
-        
-             
-        if (len(news)>0 and tweetlimit > 0):
-            twitterClient = twitter.Api(consumer_key=twitterConsumerKey,consumer_secret=twitterConsumerSecret,access_token_key=botTK, access_token_secret=botTS)
-            hashtags = {}
-            if 'hashtags' in bot.keys():
-                hashtags = bot.hashtags
-            
-            count = 0
-            if not DEBUG_MODE:
-                random.shuffle(news)
-            
-            for item in news:
-                #Titulo
-                title = item.title
-                
-                passFilter = textPassFilters(title,bot.filters)
-                
-                if passFilter:
-                            
-                    #Parseamos el original id que lleva el link original
-                    gnlink = item.url
-                    posURL = gnlink.find("url=")
-                    link = gnlink[posURL+len("url="):len(gnlink)] 
-                    
-                    tweet = ''
-                    try:
-                        print "    Generating Tweet...."
-                        
-                        #Creamos el tweet
-                        tweet = generateTweet(title, link,hashtags)
-                        
-                        if not DEBUG_MODE:
-                            tuitAndMark(tweet, item)
-
-                        print "    Tweeted!!!: %s (%i)" % (tweet, len(tweet))
-                        count=count+1 
-                    except Exception as (e):
-                        print "    ### Error while tweeting ###"
-                        print "    ### Tweet: %s" % tweet
-                        print "    ### URL: %s ###" % link
-                        print "    ### %s ###" % e.message
-                        try:
-                            item.markRead()
-                        except Exception as (e):
-                            print '    Error marking as read'
-                       
-                    
-                else:
-                    print "    !!! Tweet Rejected: %s" % (title)
-                    if not DEBUG_MODE:
-                        item.markRead()
-                
-                if (count == tweetlimit):
-                    break
-    
+        bot = Bot(bot)
+        bot.update()
