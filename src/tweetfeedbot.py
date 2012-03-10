@@ -12,10 +12,12 @@ import random
 from twitter import TwitterError
 from bitly import BitlyError
 
+import time
 import threading
 import urllib2
 import os.path
 import sys
+from warnings import catch_warnings
 reload(sys)
 sys.setdefaultencoding( "latin-1" )
 
@@ -100,8 +102,14 @@ class BotThread(threading.Thread):
         threading.Thread.__init__(self)
         self.bot = bot
     def run(self):
-        self.bot.update()
-
+        while True:
+            try:
+                self.bot.update()
+            except Exception as (e):
+                print "Error updating bot"
+                print e
+            time.sleep(PERIOD_SECONDS)
+            
 class Bot(object):
     def __init__(self,config):
         self.config = config
@@ -231,6 +239,10 @@ else:
     exit()
 
 DEFAULT_MAX_TWEETS = 2
+PERIOD_SECONDS = 3600
+
+if DEBUG_MODE:
+    PERIOD_SECONDS = 10
 
 for bot in cfg.bots:
     
