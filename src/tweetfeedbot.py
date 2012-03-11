@@ -12,6 +12,7 @@ import random
 from twitter import TwitterError
 from bitly import BitlyError
 
+import logging
 import time
 import threading
 import urllib2
@@ -23,40 +24,6 @@ sys.setdefaultencoding( "latin-1" )
 
 
 
-def generateTweet(title,url,hashtags={}):
-    
-       
-    shortlink = url
-    try:
-        shortlink = apiBitly.shorten(url)
-    except BitlyError as (e):
-        print '    Error shortening link (%s)' % (url)
-        
-
-    tweet = "%s %s" % (title,shortlink)
-    
-    try:
-        if len(tweet) < 140:
-            if title.find('...') > -1:
-                longTitle = '' #getURLTitle(url)
-                if longTitle != '':
-                    longTweet = "%s %s" % (longTitle,shortlink)
-                    if len(longTweet) < 140:
-                        tweet = longTweet
-    except Exception as (e):
-        print '        Error while getting title: %s' % e.message
-        raise
-    
-    hashtagedtweet = tweet
-    for key, value in hashtags.iteritems():
-        hashtagedtweet = hashtagedtweet.replace(key,value)
-        if hashtagedtweet != tweet:
-            break
-        
-    if len(hashtagedtweet) > 140:
-        hashtagedtweet = tweet
-        
-    return hashtagedtweet
 
 def getURLTitle(url):
     print '        searching title: %s' % url
@@ -102,23 +69,30 @@ class BotThread(threading.Thread):
         threading.Thread.__init__(self)
         self.bot = bot
     def run(self):
-        while True:
-            try:
-                tph = bot.GetTweetsPerHour()
-                tweetlimit = tph if tph > -1 else DEFAULT_MAX_TWEETS 
-                print 'Bot %s -> Trying to post %i Twitter updates' % (self.bot.botfolder,self.bot.GetTweetsPerHour())
+        tph = bot.GetTweetsPerHour()
+        tweetlimit = tph if tph > -1 else DEFAULT_MAX_TWEETS 
         
-                count = 0
+               
+        while True:
+            nextUpdateSeconds = 0 
+            timeRemain = PERIOD_SECONDS
+            count = 0
+            try:
+                logging.info('[%s] -> Trying to post %i Twitter updates', self.bot.botfolder,self.bot.GetTweetsPerHour())
+                
                 while (count < tweetlimit):
+                    nextUpdateSeconds = random.randint(0, timeRemain)
+                    timeRemain -= nextUpdateSeconds
+                    logging.info("[%s] -> Next update in %d seconds",self.bot.botfolder,nextUpdateSeconds)
+                    time.sleep(nextUpdateSeconds)
                     if self.bot.update():
                         count += 1
                 
-                
-                
             except Exception as (e):
-                print "Error updating bot"
+                logging.error("[%s] -> Error updating bot",self.bot.botfolder)
                 print e
-            time.sleep(PERIOD_SECONDS)
+            logging.info('[%s] -> Posted %i Twitter updates. Would start again in %d seconds ', self.bot.botfolder,count,timeRemain)
+            time.sleep(timeRemain)
             
 class Bot(object):
     def __init__(self,config):
@@ -140,27 +114,59 @@ class Bot(object):
         #Si el tweet es de menos de 140 caracteres publicamos
         if len(tweet) <= 140:
             try:
-                print "    Tweeting...."
+                logging.info("[%s] ->     Tweeting....",self.botfolder)
                 self.twitterClient.PostUpdate(tweet)
             except TwitterError as (e):
-                print '    Error Posting update (%s): %s' % (tweet,e.message)
+                logging.error("[%s] ->     Error Posting update (%s): %s" ,self.botfolder,tweet,e.message)
                 raise e
         
         #Marcamos el item de Google Reaer como leido    
         try:
             item.markRead()
         except Exception as (e):
-            print '    Error marking as read'
+            logging.error("[%s] ->     Error marking as read",self.botfolder)
             raise e
+    def generateTweet(self,title,url,hashtags={}):
     
+       
+        shortlink = url
+        try:
+            shortlink = apiBitly.shorten(url)
+        except BitlyError as (e):
+            logging.warning("[%s] ->     Error shortening link (%s)",self.botfolder,url)
+            
+    
+        tweet = "%s %s" % (title,shortlink)
+        
+        try:
+            if len(tweet) < 140:
+                if title.find('...') > -1:
+                    longTitle = '' #getURLTitle(url)
+                    if longTitle != '':
+                        longTweet = "%s %s" % (longTitle,shortlink)
+                        if len(longTweet) < 140:
+                            tweet = longTweet
+        except Exception as (e):
+            logging.warning("[%s] ->         Error while getting title: %s",self.botfolder,e.message)
+            raise
+        
+        hashtagedtweet = tweet
+        for key, value in hashtags.iteritems():
+            hashtagedtweet = hashtagedtweet.replace(key,value)
+            if hashtagedtweet != tweet:
+                break
+            
+        if len(hashtagedtweet) > 140:
+            hashtagedtweet = tweet
+            
+        return hashtagedtweet
+
     def update(self):
         
         categories = reader.getCategories()
         news = getCategoryItems(categories,self.botfolder)
         success = False
         
-        
-             
         if (len(news)>0):
             self.twitterClient = twitter.Api(consumer_key=twitterConsumerKey,
                                              consumer_secret=twitterConsumerSecret,
@@ -186,29 +192,30 @@ class Bot(object):
                 
                 tweet = ''
                 try:
-                    print "    Generating Tweet...."
+                    logging.info("[%s] ->     Generating Tweet....",self.botfolder)
                     
                     #Creamos el tweet
-                    tweet = generateTweet(title, link, self.hashtags)
+                    tweet = self.generateTweet(title, link, self.hashtags)
                     
                     if not DEBUG_MODE:
                         self.tuitAndMark(tweet, item)
 
-                    print "    Tweeted!!!: %s (%i)" % (tweet, len(tweet))
+                    logging.info("[%s] ->     Tweeted!!!: %s (%i)",self.botfolder, tweet, len(tweet))
                     success = True
                 except Exception as (e):
-                    print "    ### Error while tweeting ###"
-                    print "    ### Tweet: %s" % tweet
-                    print "    ### URL: %s ###" % link
-                    print "    ### %s ###" % e.message
+                    
+                    logging.error("[%s] ->     ### Error while tweeting ###\n" +
+                                  "    ### Tweet: %s\n" + 
+                                  "    ### URL: %s ###\n" +
+                                  "    ### %s ###",self.botfolder,tweet, link,e.message)
                     try:
                         item.markRead()
                     except Exception as (e):
-                        print '    Error marking as read'
+                        logging.error("[%s] ->     Error marking as read", self.botfolder)
                    
                 
             else:
-                print "    !!! Tweet Rejected: %s" % (title)
+                logging.info("[%s] ->     !!! Tweet Rejected: %s",self.botfolder,title)
                 if not DEBUG_MODE:
                     item.markRead()
         else:
@@ -227,13 +234,16 @@ cfg = Config(f)
 
 DEBUG_MODE = os.path.isfile('debug')
 if DEBUG_MODE:
-    print "################    DEBUG MODE    ##############"
+    logging.basicConfig(format='[%(asctime)s] %(levelname)s - %(message)s',level=logging.DEBUG)
+    logging.info("################    DEBUG MODE    ##############")
+else:
+    logging.basicConfig(format='[%(asctime)s] %(levelname)s - %(message)s',level=logging.INFO)
 
 if (not internet_on()):
-    print "Couldn't connect to internet" 
+    logging.critical("Couldn't connect to internet") 
     exit()
 else:
-    print "Connected to Internet"
+    logging.info("Connected to Internet")
 
 readerUser = cfg.readerUser
 readerPassword = cfg.readerPassword
@@ -250,20 +260,20 @@ apiBitly = bitly.Api(login=bitlyuser, apikey=bitlyapikey)
 ca = ClientAuthMethod(readerUser,readerPassword)
 reader = GoogleReader(ca)
 if reader.buildSubscriptionList():
-    print "Google Reader request ok"
+    logging.info("Google Reader request ok")
 else:
-    print "Error retrieving subscriptions from Google Reader"
+    logging.critical("Error retrieving subscriptions from Google Reader")
     exit()
 
 DEFAULT_MAX_TWEETS = 2
 PERIOD_SECONDS = 3600
 
 if DEBUG_MODE:
-    PERIOD_SECONDS = 10
+    PERIOD_SECONDS = 80
 
-for bot in cfg.bots:
+for botConfig in cfg.bots:
     
-    if (bot.active):
-        bot = Bot(bot)
+    if (botConfig.active):
+        bot = Bot(botConfig)
         botThread = BotThread(bot)
         botThread.start()
