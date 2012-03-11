@@ -104,7 +104,17 @@ class BotThread(threading.Thread):
     def run(self):
         while True:
             try:
-                self.bot.update()
+                tph = bot.GetTweetsPerHour()
+                tweetlimit = tph if tph > -1 else DEFAULT_MAX_TWEETS 
+                print 'Bot %s -> Trying to post %i Twitter updates' % (self.bot.botfolder,self.bot.GetTweetsPerHour())
+        
+                count = 0
+                while (count < tweetlimit):
+                    if self.bot.update():
+                        count += 1
+                
+                
+                
             except Exception as (e):
                 print "Error updating bot"
                 print e
@@ -112,8 +122,20 @@ class BotThread(threading.Thread):
             
 class Bot(object):
     def __init__(self,config):
-        self.config = config
+        self.botfolder = config.folder
+        self.botTK = config.accessTokenKey
+        self.botTS = config.accessTokenSecret
+        self.tph = config.maxtweets
         
+        self.hashtags = {}
+        if 'hashtags' in config.keys():
+            self.hashtags = config.hashtags
+        
+        
+        self.config = config
+    def GetTweetsPerHour(self):
+        return self.tph
+    
     def tuitAndMark(self,tweet,item):
         #Si el tweet es de menos de 140 caracteres publicamos
         if len(tweet) <= 140:
@@ -132,72 +154,67 @@ class Bot(object):
             raise e
     
     def update(self):
-        botfolder = self.config.folder
-        botTK = self.config.accessTokenKey
-        botTS = self.config.accessTokenSecret
         
         categories = reader.getCategories()
-        news = getCategoryItems(categories,botfolder)
-        tweetlimit = self.config.maxtweets if self.config.maxtweets > -1 else DEFAULT_MAX_TWEETS 
-        print 'Bot %s info -> Total News: %i Limit:%i Access Token:%s Access Token Secret: %s' % (botfolder,len(news),tweetlimit,'botTK','botTS')
+        news = getCategoryItems(categories,self.botfolder)
+        success = False
+        
         
              
-        if (len(news)>0 and tweetlimit > 0):
-            self.twitterClient = twitter.Api(consumer_key=twitterConsumerKey,consumer_secret=twitterConsumerSecret,access_token_key=botTK, access_token_secret=botTS)
-            hashtags = {}
-            if 'hashtags' in self.config.keys():
-                hashtags = self.config.hashtags
+        if (len(news)>0):
+            self.twitterClient = twitter.Api(consumer_key=twitterConsumerKey,
+                                             consumer_secret=twitterConsumerSecret,
+                                             access_token_key=self.botTK, 
+                                             access_token_secret=self.botTS)
             
-            count = 0
             if not DEBUG_MODE:
                 random.shuffle(news)
             
-            for item in news:
-                #Titulo
-                title = item.title
-                
-                passFilter = textPassFilters(title,self.config.filters)
-                
-                if passFilter:
-                            
-                    #Parseamos el original id que lleva el link original
-                    gnlink = item.url
-                    posURL = gnlink.find("url=")
-                    link = gnlink[posURL+len("url="):len(gnlink)] 
-                    
-                    tweet = ''
-                    try:
-                        print "    Generating Tweet...."
+            item = news[0]
+            
+            #Titulo
+            title = item.title
+            
+            passFilter = textPassFilters(title,self.config.filters)
+            
+            if passFilter:
                         
-                        #Creamos el tweet
-                        tweet = generateTweet(title, link,hashtags)
-                        
-                        if not DEBUG_MODE:
-                            self.tuitAndMark(tweet, item)
-
-                        print "    Tweeted!!!: %s (%i)" % (tweet, len(tweet))
-                        count=count+1 
-                    except Exception as (e):
-                        print "    ### Error while tweeting ###"
-                        print "    ### Tweet: %s" % tweet
-                        print "    ### URL: %s ###" % link
-                        print "    ### %s ###" % e.message
-                        try:
-                            item.markRead()
-                        except Exception as (e):
-                            print '    Error marking as read'
-                       
+                #Parseamos el original id que lleva el link original
+                gnlink = item.url
+                posURL = gnlink.find("url=")
+                link = gnlink[posURL+len("url="):len(gnlink)] 
+                
+                tweet = ''
+                try:
+                    print "    Generating Tweet...."
                     
-                else:
-                    print "    !!! Tweet Rejected: %s" % (title)
+                    #Creamos el tweet
+                    tweet = generateTweet(title, link, self.hashtags)
+                    
                     if not DEBUG_MODE:
-                        item.markRead()
-                
-                if (count == tweetlimit):
-                    break
-    
-        
+                        self.tuitAndMark(tweet, item)
 
+                    print "    Tweeted!!!: %s (%i)" % (tweet, len(tweet))
+                    success = True
+                except Exception as (e):
+                    print "    ### Error while tweeting ###"
+                    print "    ### Tweet: %s" % tweet
+                    print "    ### URL: %s ###" % link
+                    print "    ### %s ###" % e.message
+                    try:
+                        item.markRead()
+                    except Exception as (e):
+                        print '    Error marking as read'
+                   
+                
+            else:
+                print "    !!! Tweet Rejected: %s" % (title)
+                if not DEBUG_MODE:
+                    item.markRead()
+        else:
+            success = True
+        
+        return success
 
 ###########################################################
 argv = sys.argv
