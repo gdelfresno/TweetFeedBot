@@ -29,7 +29,7 @@ sys.setdefaultencoding( "latin-1" )
 def getURLTitle(url):
     print '        searching title: %s' % url
     br = Browser()
-    br.open(url,timeout=10)
+    br.open(url,timeout=5)
     title = br.title()
     br.close()
     print '        title -> %s ' % (title)
@@ -81,22 +81,26 @@ class BotThread(threading.Thread):
             try:
                 logging.info('[%s] -> Trying to post %i Twitter updates', self.bot.botfolder,self.bot.GetTweetsPerHour())
                 
-                while (count < tweetlimit):
+                for _ in range(tweetlimit):
                     nextUpdateSeconds = random.randint(0, timeRemain)
+                    if DEBUG_MODE:
+                        nextUpdateSeconds = 0
+                        
                     timeRemain -= nextUpdateSeconds
                     
                     nextTime = datetime.datetime.now() + datetime.timedelta(seconds=nextUpdateSeconds)
                     
-                    logging.info("[%s] -> Next update in %d seconds at %s",self.bot.botfolder,nextUpdateSeconds,nextTime.strftime("%I:%M:%S"))
+                    logging.info("[%s] -> Next update in %d seconds at %s",self.bot.botfolder,nextUpdateSeconds,nextTime.strftime("%H:%M:%S"))
                     time.sleep(nextUpdateSeconds)
                     if self.bot.update():
                         count += 1
-                
+                    
             except Exception as (e):
                 logging.error("[%s] -> Error updating bot: %s",self.bot.botfolder,e)
                 print e
+            
             nextLoop = datetime.datetime.now() + datetime.timedelta(seconds=timeRemain)
-            logging.info('[%s] -> Posted %i Twitter updates. Would start again in %d seconds at %s', self.bot.botfolder,count,timeRemain, nextLoop.strftime("%I:%M:%S"))
+            logging.info('[%s] -> Posted %i Twitter updates. Would start again in %d seconds at %s', self.bot.botfolder,count,timeRemain, nextLoop.strftime("%H:%M:%S"))
             time.sleep(timeRemain)
             
 class Bot(object):
@@ -131,7 +135,7 @@ class Bot(object):
         except Exception as (e):
             logging.error("[%s] ->     Error marking as read",self.botfolder)
             raise e
-    def generateTweet(self,title,url,hashtags={}):
+    def generateTweet(self,feedTitle,url,hashtags={}):
     
        
         shortlink = url
@@ -141,18 +145,35 @@ class Bot(object):
             logging.warning("[%s] ->     Error shortening link (%s)",self.botfolder,url)
             
     
-        tweet = "%s %s" % (title,shortlink)
         
+        #Obtenemos la informacion del titulo
+        posD = feedTitle.find(' - ') 
+        if posD > -1:
+            title = feedTitle[0:posD]
+            source = feedTitle[posD+len(' - '):len(feedTitle)]
+        
+        
+        
+        tempTweet = "%s - %s %s" % (title,source,shortlink)
+        tweet = tempTweet
+        
+            
         try:
             if len(tweet) < 140:
+                #Miramos si esta acortado
                 if title.find('...') > -1:
-                    longTitle = '' #getURLTitle(url)
+                    longTitle = ''#getURLTitle(url)
                     if longTitle != '':
-                        longTweet = "%s %s" % (longTitle,shortlink)
-                        if len(longTweet) < 140:
-                            tweet = longTweet
+                        tempTweet = "%s - %s %s" % (longTitle,source,shortlink)
+                        
+                        if len(tempTweet) > 140:
+                            tempTweet = "%s %s" % (longTitle,source,shortlink)
+                        
+                        if len(tempTweet) < 140:
+                            tweet = tempTweet
+                            
         except Exception as (e):
-            logging.warning("[%s] ->         Error while getting title: %s",self.botfolder,e.message)
+            logging.warning("[%s] ->         Error while getting feedTitle: %s",self.botfolder,e.message)
             raise
         
         hashtagedtweet = tweet
@@ -185,6 +206,7 @@ class Bot(object):
         logging.debug("[%s] ->     %d new articles",self.botfolder,len(news))
         
         if (len(news)>0):
+            
             logging.debug("[%s] ->     Initializing Twitter Api",self.botfolder)
             self.twitterClient = twitter.Api(consumer_key=twitterConsumerKey,
                                              consumer_secret=twitterConsumerSecret,
@@ -194,14 +216,11 @@ class Bot(object):
             if not DEBUG_MODE:
                 random.shuffle(news)
             
-            item = news[0]
+            #Buscamos una noticia que pase los filtros
             
-            #Titulo
-            title = item.title
+            item = next((x for x in news if textPassFilters(x.title,self.config.filters)),None)
             
-            passFilter = textPassFilters(title,self.config.filters)
-            
-            if passFilter:
+            if item:
                         
                 #Parseamos el original id que lleva el link original
                 gnlink = item.url
@@ -213,7 +232,7 @@ class Bot(object):
                     logging.debug("[%s] ->    Generating Tweet....",self.botfolder)
                     
                     #Creamos el tweet
-                    tweet = self.generateTweet(title, link, self.hashtags)
+                    tweet = self.generateTweet(item.title, link, self.hashtags)
                     
                     logging.debug("[%s] ->     Tweeting and Marking....",self.botfolder)
                     
@@ -221,7 +240,9 @@ class Bot(object):
                         self.tuitAndMark(tweet, item)
 
                     logging.info("[%s] ->     Tweeted!!!: %s (%i)",self.botfolder, tweet, len(tweet))
+                    
                     success = True
+                
                 except Exception as (e):
                     
                     logging.error("[%s] ->     ### Error while tweeting ###\n" +
@@ -232,14 +253,11 @@ class Bot(object):
                         item.markRead()
                     except Exception as (e):
                         logging.error("[%s] ->     Error marking as read", self.botfolder)
-                   
                 
             else:
-                logging.info("[%s] ->     !!! Tweet Rejected: %s",self.botfolder,title)
+                logging.info("[%s] ->     !!! No news to post",self.botfolder)
                 if not DEBUG_MODE:
                     item.markRead()
-        else:
-            success = True
         
         return success
 
