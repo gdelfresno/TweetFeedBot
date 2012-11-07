@@ -218,7 +218,13 @@ class Bot(object):
             
             #Buscamos una noticia que pase los filtros
             
-            item = next((x for x in news if textPassFilters(x.title,self.config.filters)),None)
+            item = None
+            for x in news:
+                if textPassFilters(x.title,self.config.filters):
+                    item = x
+                    break
+                else:
+                    x.markRead()
             
             if item:
                         
@@ -256,8 +262,9 @@ class Bot(object):
                 
             else:
                 logging.info("[%s] ->     !!! No news to post",self.botfolder)
-                if not DEBUG_MODE:
-                    item.markRead()
+        else:
+            logging.info("[%s] ->     !!! No news to post",self.botfolder)
+            
         
         return success
 
