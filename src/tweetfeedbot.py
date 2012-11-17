@@ -5,25 +5,33 @@ Created on 21/10/2011
 '''
 from libgreader import GoogleReader, ClientAuthMethod
 import bitly
-import twitter
-from config import Config
-from mechanize import Browser
-import random
-from twitter import TwitterError
 from bitly import BitlyError
+import twitter
+from twitter import TwitterError
 
+from optparse import OptionParser
+from config import Config
+
+from mechanize import Browser
+
+import random
 import logging
 import time
 import datetime
 import threading
 import urllib2
-import os.path
 import sys
-from warnings import catch_warnings
+
 reload(sys)
 sys.setdefaultencoding( "latin-1" ) #@UndefinedVariable
 
-
+def get_parser():
+    parser = OptionParser()
+    parser.add_option("-c", "--config", dest="configFile", help="Config file", metavar="FILE")
+    parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False, help="Debug mode. No tweeting and marking")
+    
+    parser.usage = "bad parametres"
+    return parser
 
 
 def getURLTitle(url):
@@ -68,7 +76,7 @@ def internet_on():
 class BotThread(threading.Thread):
     def __init__(self,bot):
         threading.Thread.__init__(self)
-        self.bot = bot
+        self.bot = bot        
     def run(self):
         tph = bot.GetTweetsPerHour()
         tweetlimit = tph if tph > -1 else DEFAULT_MAX_TWEETS 
@@ -79,7 +87,7 @@ class BotThread(threading.Thread):
             timeRemain = PERIOD_SECONDS
             count = 0
             try:
-                logging.info('[%s] -> Trying to post %i Twitter updates', self.bot.botfolder,self.bot.GetTweetsPerHour())
+                logging.debug('[%s] -> Trying to post %i Twitter updates', self.bot.botfolder,self.bot.GetTweetsPerHour())
                 
                 for _ in range(tweetlimit):
                     nextUpdateSeconds = random.randint(0, timeRemain)
@@ -195,7 +203,7 @@ class Bot(object):
         ca = ClientAuthMethod(readerUser,readerPassword)
         reader = GoogleReader(ca)
         if reader.buildSubscriptionList():
-            logging.info("[%s] ->     Google Reader connect ok",self.botfolder)
+            logging.debug("[%s] ->     Google Reader connect ok",self.botfolder)
         else:
             logging.error("[%s] ->     Error retrieving subscriptions from Google Reader",self.botfolder)
             return False
@@ -269,50 +277,55 @@ class Bot(object):
         return success
 
 ###########################################################
-argv = sys.argv
-if (len(argv)<2):
-    print "Usage: %s %s" % (argv[0], "configFile.cfg")
-    exit()
-
-f = file(argv[1])
-cfg = Config(f)
-
-DEBUG_MODE = os.path.isfile('debug')
-if DEBUG_MODE:
-    logging.basicConfig(format='[%(asctime)s] %(levelname)s - %(message)s',level=logging.DEBUG)
-    logging.info("################    DEBUG MODE    ##############")
-else:
-    logging.basicConfig(format='[%(asctime)s] %(levelname)s - %(message)s',level=logging.DEBUG)
-
-if (not internet_on()):
-    logging.critical("Couldn't connect to internet") 
-    exit()
-else:
-    logging.info("Connected to Internet")
-
-readerUser = cfg.readerUser
-readerPassword = cfg.readerPassword
-
-bitlyapikey = cfg.bitlyapikey
-bitlyuser = cfg.bitlyuser
-
-twitterConsumerKey = cfg.twitterConsumerKey
-twitterConsumerSecret = cfg.twitterConsumerSecret
-
-apiBitly = bitly.Api(login=bitlyuser, apikey=bitlyapikey)
-
-#Iniciamos la conexion a Google Reader
-
-
-DEFAULT_MAX_TWEETS = 2
-PERIOD_SECONDS = 3600
-
-if DEBUG_MODE:
-    PERIOD_SECONDS = 80
-
-for botConfig in cfg.bots:
+if __name__ == "__main__":
     
-    if (botConfig.active):
-        bot = Bot(botConfig)
-        botThread = BotThread(bot)
-        botThread.start()
+    parser = get_parser()
+    (options, args) = parser.parse_args()
+    print options, args
+
+#    logging.info('Starting with config file: %s' % options.configFile)
+    f = file(options.configFile)
+    cfg = Config(f)
+    
+    DEBUG_MODE = options.debug
+    
+    if DEBUG_MODE:
+        logging.basicConfig(format='[%(asctime)s] %(levelname)s - %(message)s',level=logging.DEBUG)
+        logging.debug("################    DEBUG MODE    ##############")
+    else:
+        logging.basicConfig(format='[%(asctime)s] %(levelname)s - %(message)s',level=logging.INFO)
+    
+    if (not internet_on()):
+        logging.critical("Couldn't connect to internet") 
+        exit()
+    else:
+        logging.debug("Connected to Internet")
+    
+    readerUser = cfg.readerUser
+    readerPassword = cfg.readerPassword
+    
+    bitlyapikey = cfg.bitlyapikey
+    bitlyuser = cfg.bitlyuser
+    
+    twitterConsumerKey = cfg.twitterConsumerKey
+    twitterConsumerSecret = cfg.twitterConsumerSecret
+    
+    apiBitly = bitly.Api(login=bitlyuser, apikey=bitlyapikey)
+    
+    DEFAULT_MAX_TWEETS = 2
+    PERIOD_SECONDS = 3600
+    
+    if DEBUG_MODE:
+        PERIOD_SECONDS = 80
+    
+    for botConfig in cfg.bots:
+        
+        if (botConfig.active):
+            bot = Bot(botConfig)
+            botThread = BotThread(bot)
+            botThread.daemon = True
+            logging.info('Starting bot %s' % bot.botfolder)
+            botThread.start()
+        
+    while True:
+        time.sleep(1)
