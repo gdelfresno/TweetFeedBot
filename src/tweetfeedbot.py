@@ -27,7 +27,8 @@ def get_parser():
     parser = OptionParser()
     parser.add_option("-c", "--config", dest="configFile", help="Config file", metavar="FILE")
     parser.add_option("-s", "--simulate", action="store_true", dest="simulate", default=False, help="Simulate mode. No tweeting and marking")
-    
+    parser.add_option("--log", dest="loglevel", default='INFO', help="Log level")
+    parser.add_option("--logfile", dest="logfile", default=None, help="Log file. Std out otherwise")
     
     return parser
 
@@ -268,25 +269,28 @@ if __name__ == "__main__":
     
     parser = get_parser()
     (options, args) = parser.parse_args()
-    print options, args
-
-#    logging.info('Starting with config file: %s' % options.configFile)
+    
     f = file(options.configFile)
     cfg = Config(f)
     
     SIMULATE = options.simulate
+   
+    if options.logfile is None: 
+        logging.basicConfig(format='[%(asctime)s] %(levelname)s - %(message)s',level=options.loglevel)
+    else:
+        logging.basicConfig(filename=options.logfile,format='[%(asctime)s] %(levelname)s - %(message)s',level=options.loglevel)
+        print('Logging to file %s' % options.logfile)    
     
     if SIMULATE:
-        logging.basicConfig(format='[%(asctime)s] %(levelname)s - %(message)s',level=logging.DEBUG)
-        logging.debug("################    DEBUG MODE    ##############")
-    else:
-        logging.basicConfig(format='[%(asctime)s] %(levelname)s - %(message)s',level=logging.INFO)
+        logging.info("################    SIMULATE MODE    ##############")
     
     if (not internet_on()):
         logging.critical("Couldn't connect to internet") 
         exit()
     else:
         logging.debug("Connected to Internet")
+    
+    logging.info("################    STARTING    ##############")
     
     readerUser = cfg.readerUser
     readerPassword = cfg.readerPassword
