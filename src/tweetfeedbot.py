@@ -26,7 +26,8 @@ sys.setdefaultencoding( "latin-1" ) #@UndefinedVariable
 def get_parser():
     parser = OptionParser()
     parser.add_option("-c", "--config", dest="configFile", help="Config file", metavar="FILE")
-    parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False, help="Debug mode. No tweeting and marking")
+    parser.add_option("-s", "--simulate", action="store_true", dest="simulate", default=False, help="Simulate mode. No tweeting and marking")
+    
     
     return parser
 
@@ -77,7 +78,7 @@ class BotThread(threading.Thread):
                 
                 for _ in range(tweetlimit):
                     nextUpdateSeconds = random.randint(0, timeRemain)
-                    if DEBUG_MODE:
+                    if SIMULATE:
                         nextUpdateSeconds = 0
                         
                     timeRemain -= nextUpdateSeconds
@@ -207,7 +208,7 @@ class Bot(object):
                                              access_token_key=self.botTK, 
                                              access_token_secret=self.botTS)
             
-            if not DEBUG_MODE:
+            if not SIMULATE:
                 random.shuffle(news)
             
             #Buscamos una noticia que pase los filtros
@@ -236,7 +237,7 @@ class Bot(object):
                     
                     logging.debug("[%s] ->     Tweeting and Marking....",self.botfolder)
                     
-                    if not DEBUG_MODE:
+                    if not SIMULATE:
                         self.tuitAndMark(tweet, item)
 
                     logging.info("[%s] ->     Tweeted!!!: %s (%i)",self.botfolder, tweet, len(tweet))
@@ -273,9 +274,9 @@ if __name__ == "__main__":
     f = file(options.configFile)
     cfg = Config(f)
     
-    DEBUG_MODE = options.debug
+    SIMULATE = options.simulate
     
-    if DEBUG_MODE:
+    if SIMULATE:
         logging.basicConfig(format='[%(asctime)s] %(levelname)s - %(message)s',level=logging.DEBUG)
         logging.debug("################    DEBUG MODE    ##############")
     else:
@@ -301,7 +302,7 @@ if __name__ == "__main__":
     DEFAULT_MAX_TWEETS = 2
     PERIOD_SECONDS = 3600
     
-    if DEBUG_MODE:
+    if SIMULATE:
         PERIOD_SECONDS = 80
     
     for botConfig in cfg.bots:
