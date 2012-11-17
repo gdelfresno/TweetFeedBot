@@ -21,7 +21,7 @@ import os.path
 import sys
 from warnings import catch_warnings
 reload(sys)
-sys.setdefaultencoding( "latin-1" )
+sys.setdefaultencoding( "latin-1" ) #@UndefinedVariable
 
 
 
