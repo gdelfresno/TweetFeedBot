@@ -12,8 +12,6 @@ from twitter import TwitterError
 from optparse import OptionParser
 from config import Config
 
-from mechanize import Browser
-
 import random
 import logging
 import time
@@ -30,19 +28,7 @@ def get_parser():
     parser.add_option("-c", "--config", dest="configFile", help="Config file", metavar="FILE")
     parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False, help="Debug mode. No tweeting and marking")
     
-    parser.usage = "bad parametres"
     return parser
-
-
-def getURLTitle(url):
-    print '        searching title: %s' % url
-    br = Browser()
-    br.open(url,timeout=5)
-    title = br.title()
-    br.close()
-    print '        title -> %s ' % (title)
-     
-    return title
 
 def textPassFilters(text,filters):
     passFilter = True
@@ -169,8 +155,8 @@ class Bot(object):
         try:
             if len(tweet) < 140:
                 #Miramos si esta acortado
-                if title.find('...') > -1:
-                    longTitle = ''#getURLTitle(url)
+                if '...' in title:
+                    longTitle = ''
                     if longTitle != '':
                         tempTweet = "%s - %s %s" % (longTitle,source,shortlink)
                         
